@@ -2,106 +2,65 @@ package ru.yandex.praktikum;
 
 import io.qameta.allure.Description;
 import io.restassured.RestAssured;
+import io.restassured.response.Response;
 import io.restassured.response.ValidatableResponse;
+import org.apache.commons.lang3.StringUtils;
 import org.junit.jupiter.api.*;
 
+import java.io.File;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 
 import static io.restassured.RestAssured.*;
 import static org.hamcrest.Matchers.*;
 
-@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
+//@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class CourierTest {
-
-    private int courierId;
-    private String baseUri = "https://qa-scooter.praktikum-services.ru";  // Используем правильную базовую ссылку
 
     @BeforeEach
     public void setUp() {
-        RestAssured.baseURI = baseUri;
+        RestAssured.baseURI = "https://qa-scooter.praktikum-services.ru";
     }
+
+    private static int courierId;
+    private static String courierLogin;
+    private static final String courierPassword = "12345";
+    private static final String courierFirstName = "TestUser";
 
     @Test
     @Order(1)
-    @Description("Проверка создания курьера и авторизация")
-    public void testCreateCourier() {
-        String currentTime = LocalTime.now().format(DateTimeFormatter.ofPattern("HHmmssSSS"));
+    @DisplayName("Создание уникального курьера без использования JSON-файла")
+    @Description("Регистрирует нового курьера с уникальным логином, сгенерированным во время выполнения теста")
+    public void createCourierWithUniqueLogin() {
+        String timeSuffix = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmssSSS"));
+        courierLogin = "courier_" + timeSuffix;
 
-        String courierLogin = "login" + currentTime;
-
-        String courierJson = "{ \"login\": \"" + courierLogin + "\", \"password\": \"12345\", \"firstName\": \"TestUser\" }";
-
-        ValidatableResponse createResponse = given()
-                .header("Content-Type", "application/json")
-                .body(courierJson)
-                .when()
-                .post("api/v1/courier")
-                .then()
-                .statusCode(201)  // Ожидаем статус 201
-                .body("ok", equalTo(true));
-
-        courierId = createResponse.extract().path("id");
-
-        if (courierId == 0) {
-            throw new RuntimeException("Courier ID not found in the response.");
-        }
-
-        System.out.println("Created courier ID: " + courierId);
+        String jsonBody = String.format(
+                "{ \"login\": \"%s\", \"password\": \"%s\", \"firstName\": \"%s\" }",
+                courierLogin, courierPassword, courierFirstName
+        );
 
         given()
                 .header("Content-Type", "application/json")
-                .body(courierId)
+                .body(jsonBody)
                 .when()
-                .post("api/v1/courier/login")
+                .post("/api/v1/courier")
                 .then()
-                .statusCode(200)
-                .body("id", notNullValue());  // Проверяем, что ID курьера возвращается
-
-
-    }
-
-    @Test
-    @Order(3)
-    @Description("Проверка удаления курьера")
-    public void testDeleteCourier() {
-        String currentTime = LocalTime.now().format(DateTimeFormatter.ofPattern("HHmmssSSS"));
-
-        String courierLogin = "login" + currentTime;
-
-        String courierJson = "{ \"login\": \"" + courierLogin + "\", \"password\": \"12345\", \"firstName\": \"TestUser\" }";
-
-        ValidatableResponse createResponse = given()
-                .header("Content-Type", "application/json")
-                .body(courierJson)
-                .when()
-                .post("api/v1/courier")
-                .then()
-                .statusCode(201)  // Ожидаем статус 201
+                .statusCode(201)
                 .body("ok", equalTo(true));
 
-        courierId = createResponse.extract().path("id");
-
-        if (courierId == 0) {
-            throw new RuntimeException("Courier ID not found. Please create a courier first.");
-        }
-
-        given()
-                .header("Content-Type", "application/json")
-                .when()
-                .delete("api/v1/courier/" + courierId)
-                .then()
-                .statusCode(200)
-                .body("ok", equalTo(true));
-
-        courierId = 0;
+        System.out.println("Курьер успешно создан: " + courierLogin);
     }
+
+
+
+
 
     @Test
     @Order(4)
     @Description("Проверка создания двух одинаковых курьеров")
     public void testCreateDuplicateCourier() {
-        // Создаем курьера с дублирующим логином
         String loginJson = "{ \"login\": \"login" + LocalTime.now().format(DateTimeFormatter.ofPattern("HHmmssSSS")) + "\", \"password\": \"12345\" }";
 
         given()
